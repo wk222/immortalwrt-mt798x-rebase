@@ -100,6 +100,7 @@ jobs:
             - 驱动特性：MTK 原厂 Wi-Fi 闭源驱动 + MTK HNAT 硬件加速
             - 核心功能：
               - 科学上网：OpenClash、PassWall (含 Sing-Box, Xray, Haproxy 等)
+              - 虚拟组网：Tailscale (含 LuCI 管理界面)
               - 硬件加速：TurboACC MTK (HNAT 硬件加速)
               - 网络管理：UPnP、网络唤醒 (WOL)、定时重启
               - 系统与界面：Argon 主题与美化设置、Web 终端 (ttyd)、磁盘管理 (Diskman)、软件包管理器
