@@ -61,6 +61,23 @@ define Device/h3c_magic-nx30-pro-mtkuboot
 endef
 TARGET_DEVICES += h3c_magic-nx30-pro-mtkuboot
 
+define Device/qihoo_360t7-mtkuboot
+  DEVICE_VENDOR := Qihoo
+  DEVICE_MODEL := 360T7
+  DEVICE_VARIANT := (MTK U-Boot layout)
+  DEVICE_DTS := mt7981b-qihoo-360t7-mtkuboot
+  DEVICE_DTS_DIR := ../dts-ext
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE_SIZE := 98304k
+  KERNEL_IN_UBI := 1
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += qihoo_360t7-mtkuboot
+
 define Device/netcore_n60-pro-mtkuboot
   DEVICE_VENDOR := Netcore
   DEVICE_MODEL := N60 Pro

@@ -77,6 +77,7 @@ mediatek_setup_interfaces()
 	netis,nx32u|\
 	qihoo,360t7|\
 	qihoo,360t7-ubi|\
+	qihoo,360t7-mtkuboot|\
 	routerich,ax3000|\
 	routerich,ax3000-ubootmod|\
 	routerich,be7200|\
@@ -346,7 +347,8 @@ mediatek_setup_macs()
 		wan_mac=$(macaddr_add "$lan_mac" 2)
 		label_mac=$lan_mac
 		;;
-	qihoo,360t7)
+	qihoo,360t7|\
+	qihoo,360t7-mtkuboot)
 		lan_mac=$(mtd_get_mac_ascii factory lanMac)
 		wan_mac=$(macaddr_add "$lan_mac" 1)
 		label_mac=$wan_mac

@@ -813,6 +813,7 @@ setup_model()
 	openfi,6c |\
 	openwrt,one |\
 	qihoo,360t7 |\
+	qihoo,360t7-mtkuboot |\
 	routerich,ax3000* |\
 	ruijie,rg-x30e-pro |\
 	sl,3000-emmc |\
