@@ -1,0 +1,165 @@
+name: Build 360T7 (hanwckf U-Boot / 108M UBI factory.bin)
+
+# 适配 hanwckf bl-mt798x 的 U-Boot(网页恢复页刷 *-108M-squashfs-factory.bin)。
+# 源码不是本仓库,而是 padavanonly/immortalwrt-mt798x-23.05 的 openwrt-23.05 分支(hanwckf 分区布局)。
+# 本仓库(chasey-dev rebase)产出的是 .itb,只适用于 OpenWrt 官方风格 U-Boot,刷到 hanwckf U-Boot 上无法启动。
+
+on:
+  workflow_dispatch:
+    inputs:
+      src_repo:
+        description: "源码仓库"
+        default: "padavanonly/immortalwrt-mt798x-23.05"
+      src_branch:
+        description: "源码分支"
+        default: "openwrt-23.05"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
+          sudo docker image prune -a -f || true
+          sudo apt-get clean
+          df -h
+
+      - name: Initialize Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
+            git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
+            libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz \
+            mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply \
+            python3-docutils qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl \
+            unzip vim wget xmlto xxd zlib1g-dev
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo timedatectl set-timezone "Asia/Shanghai"
+          gcc --version | head -n1
+
+      - name: Get current date
+        id: date
+        run: |
+          echo "date=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+          echo "build_date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Clone source
+        run: |
+          git clone --depth 1 -b "${{ inputs.src_branch }}" "https://github.com/${{ inputs.src_repo }}.git" src
+          cd src
+          git log -1 --format='%H %cd %s'
+          ls defconfig
+          grep -n "360-t7" target/linux/mediatek/image/mt7981.mk
+
+      - name: Add OpenClash feed
+        working-directory: src
+        run: |
+          echo "src-git openclash https://github.com/vernesong/OpenClash.git" >> feeds.conf.default
+          cat feeds.conf.default
+
+      - name: Update and install feeds
+        working-directory: src
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Load custom configuration
+        working-directory: src
+        run: |
+          cp defconfig/mt7981-ax3000.config .config
+          # 只保留 360T7 108M 一个设备
+          sed -i -E '/^CONFIG_TARGET_DEVICE(_PACKAGES)?_mediatek_mt7981_DEVICE_/{/DEVICE_mt7981-360-t7-108M(=|$)/!d}' .config
+          cat >> .config <<'EOF'
+          CONFIG_PACKAGE_luci-app-openclash=y
+          CONFIG_PACKAGE_luci-app-passwall=y
+          CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y
+          CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Sing-Box=y
+          CONFIG_PACKAGE_luci-app-diskman=y
+          CONFIG_PACKAGE_luci-app-ttyd=y
+          CONFIG_PACKAGE_luci-app-wol=y
+          CONFIG_PACKAGE_luci-app-autoreboot=y
+          CONFIG_PACKAGE_luci-app-argon-config=y
+          CONFIG_PACKAGE_tailscale=y
+          CONFIG_PACKAGE_luci-app-tailscale=y
+          CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-diskman-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-wol-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-autoreboot-zh-cn=y
+          EOF
+          make defconfig
+          echo "--- 选中的设备 ---"
+          grep -E "^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_.*=y" .config
+          n=$(grep -cE "^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_.*=y" .config)
+          [ "$n" = "1" ] || { echo "设备数量不是 1: $n"; exit 1; }
+          grep -q "DEVICE_mt7981-360-t7-108M=y" .config || { echo "未选中 360-t7-108M"; exit 1; }
+          echo "--- 期望插件检查(缺失只告警) ---"
+          for p in luci-app-openclash luci-app-passwall luci-app-diskman luci-app-ttyd luci-app-wol luci-app-autoreboot luci-app-argon-config luci-theme-argon tailscale luci-app-tailscale kmod-mt_wifi luci-app-mtwifi-cfg luci-app-turboacc-mtk; do
+            if grep -q "^CONFIG_PACKAGE_${p}=y" .config; then echo "OK      $p"; else echo "MISSING $p"; fi
+          done
+
+      - name: Download package sources
+        working-directory: src
+        run: |
+          make download -j$(nproc)
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: Compile firmware
+        working-directory: src
+        run: |
+          make -j$(nproc) || make -j1 V=s
+
+      - name: Prepare firmware files
+        working-directory: src
+        run: |
+          mkdir -p ../release_firmware
+          d=bin/targets/mediatek/mt7981
+          ls -lah $d
+          cp $d/*360-t7-108M*factory.bin ../release_firmware/
+          cp $d/*360-t7-108M*sysupgrade.bin ../release_firmware/
+          cp $d/*360-t7-108M*initramfs*.bin ../release_firmware/ 2>/dev/null || true
+          cp $d/sha256sums ../release_firmware/ 2>/dev/null || true
+          cp $d/config.buildinfo ../release_firmware/ 2>/dev/null || true
+          cp $d/*.manifest ../release_firmware/ 2>/dev/null || true
+          cd ../release_firmware
+          # 体积自检:issue hanwckf/immortalwrt-mt798x#317 里编出 13M 的 108M 固件会无限重启
+          sz=$(stat -c%s *360-t7-108M-squashfs-factory.bin)
+          echo "factory.bin size: $sz"
+          [ "$sz" -gt 15000000 ] || { echo "factory.bin 过小,疑似编译异常"; exit 1; }
+          # UBI 魔数检查
+          [ "$(head -c4 *360-t7-108M-squashfs-factory.bin)" = "UBI#" ] || { echo "factory.bin 不是 UBI 镜像"; exit 1; }
+          ls -lah
+
+      - name: Upload firmware to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 360T7-hanwckf-108M-${{ steps.date.outputs.date }}
+          path: release_firmware/
+          retention-days: 14
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "360T7 hanwckf-U-Boot 固件 ${{ steps.date.outputs.build_date }} #${{ github.run_number }}"
+          tag_name: "hanwckf-${{ steps.date.outputs.date }}"
+          body: |
+            ## 360T7 固件(适配 hanwckf U-Boot,108M 分区)
+
+            - 源码:${{ inputs.src_repo }} @ ${{ inputs.src_branch }}
+            - 设备:mt7981-360-t7-108M
+            - 刷机:在 U-Boot 网页恢复页上传 `*-108M-squashfs-factory.bin`(第一次提示失败就刷新页面再传一次);系统内升级用 `*-sysupgrade.bin`
+            - 默认 IP 与密码以源码默认为准(通常 192.168.1.1 或 192.168.10.1,root 无密码或 password)
+          files: release_firmware/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
