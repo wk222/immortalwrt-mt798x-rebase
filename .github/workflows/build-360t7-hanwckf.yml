@@ -88,8 +88,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-wol=y
           CONFIG_PACKAGE_luci-app-autoreboot=y
           CONFIG_PACKAGE_luci-app-argon-config=y
-          CONFIG_PACKAGE_tailscale=y
-          CONFIG_PACKAGE_luci-app-tailscale=y
           CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y
           CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
           CONFIG_PACKAGE_luci-i18n-diskman-zh-cn=y
@@ -104,7 +102,7 @@ jobs:
           [ "$n" = "1" ] || { echo "设备数量不是 1: $n"; exit 1; }
           grep -q "DEVICE_mt7981-360-t7-108M=y" .config || { echo "未选中 360-t7-108M"; exit 1; }
           echo "--- 期望插件检查(缺失只告警) ---"
-          for p in luci-app-openclash luci-app-passwall luci-app-diskman luci-app-ttyd luci-app-wol luci-app-autoreboot luci-app-argon-config luci-theme-argon tailscale luci-app-tailscale kmod-mt_wifi luci-app-mtwifi-cfg luci-app-turboacc-mtk; do
+          for p in luci-app-openclash luci-app-passwall luci-app-diskman luci-app-ttyd luci-app-wol luci-app-autoreboot luci-app-argon-config luci-theme-argon kmod-mt_wifi luci-app-mtwifi-cfg luci-app-turboacc-mtk; do
             if grep -q "^CONFIG_PACKAGE_${p}=y" .config; then echo "OK      $p"; else echo "MISSING $p"; fi
           done
 
