@@ -1,0 +1,33 @@
+#!/bin/sh
+# 360T7: enable WiFi by default, open network (no password).
+# If radios are not in /etc/config/wireless yet, generate them; if still absent
+# exit 1 so uci-defaults keeps this script and retries on next boot.
+
+[ -n "$(uci -q get wireless.radio0)" ] || wifi config 2>/dev/null
+[ -n "$(uci -q get wireless.radio0)" ] || exit 1
+
+for r in $(uci -q show wireless | sed -n "s/^wireless\.\(radio[0-9]*\)=wifi-device$/\1/p"); do
+	uci -q set wireless.$r.disabled='0'
+	uci -q set wireless.$r.country='CN'
+done
+
+uci -q set wireless.radio0.channel='1'
+uci -q set wireless.radio0.htmode='HE20'
+uci -q set wireless.radio1.channel='36'
+uci -q set wireless.radio1.htmode='HE80'
+
+for s in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+	dev="$(uci -q get wireless.$s.device)"
+	case "$dev" in
+		radio0) ssid='T7-2.4G' ;;
+		radio1) ssid='T7-5G' ;;
+		*) ssid="T7-$dev" ;;
+	esac
+	uci -q set wireless.$s.disabled='0'
+	uci -q set wireless.$s.ssid="$ssid"
+	uci -q set wireless.$s.encryption='none'
+	uci -q delete wireless.$s.key
+done
+
+uci commit wireless
+exit 0
