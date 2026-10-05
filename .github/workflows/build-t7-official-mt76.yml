@@ -72,7 +72,7 @@ jobs:
         run: |
           cp ../overlay/config.seed .config
           make defconfig
-          for k in CONFIG_TARGET_mediatek_filogic_DEVICE_qihoo_360t7-mtkuboot CONFIG_PACKAGE_luci-app-homeproxy CONFIG_PACKAGE_sing-box CONFIG_PACKAGE_zerotier CONFIG_PACKAGE_luci-app-zerotier CONFIG_PACKAGE_kmod-mt7915e; do
+          for k in CONFIG_LUCI_LANG_zh_Hans CONFIG_PACKAGE_luci-i18n-base-zh-cn CONFIG_PACKAGE_luci-i18n-homeproxy-zh-cn CONFIG_PACKAGE_luci-theme-argon CONFIG_TARGET_mediatek_filogic_DEVICE_qihoo_360t7-mtkuboot CONFIG_PACKAGE_luci-app-homeproxy CONFIG_PACKAGE_sing-box CONFIG_PACKAGE_zerotier CONFIG_PACKAGE_luci-app-zerotier CONFIG_PACKAGE_kmod-mt7915e; do
             grep -q "^$k=y" .config || { echo "MISSING: $k"; exit 1; }
           done
           grep -E '^CONFIG_PACKAGE_(sing-box|luci-app-homeproxy|zerotier|luci-app-zerotier|kmod-mt7915e|kmod-mt7981-firmware|mt7981-wo-firmware)=' .config
