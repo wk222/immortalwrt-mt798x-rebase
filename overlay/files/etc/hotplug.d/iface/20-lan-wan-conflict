@@ -1,0 +1,47 @@
+#!/bin/sh
+# 二级路由防冲突: WAN 从上级拿到的网段与 LAN 重叠时, 自动把 LAN 迁到不冲突的网段。
+# 只在 wan 接口 ifup 时检查; 无冲突时什么都不做 (幂等)。
+
+[ "$ACTION" = "ifup" ] || exit 0
+[ "$INTERFACE" = "wan" ] || exit 0
+
+. /lib/functions/network.sh
+
+network_get_subnet wan_sub wan || exit 0
+[ -n "$wan_sub" ] || exit 0
+
+# 取 LAN 当前地址 (兼容 "ip/prefix" 与 ip + netmask 两种写法)
+lan_ip="$(uci -q get network.lan.ipaddr)"
+[ -n "$lan_ip" ] || exit 0
+case "$lan_ip" in
+	*/*) lan_sub="$lan_ip" ;;
+	*) lan_sub="$lan_ip/$(uci -q get network.lan.netmask || echo 255.255.255.0)" ;;
+esac
+
+# 两个子网是否重叠: 用对方的前缀长度中较小者算网络号, 比较是否相同
+overlap() {
+	local a="$1" b="$2" pa pb p na nb
+	pa="$(ipcalc.sh "$a" | sed -n 's/^PREFIX=//p')"
+	pb="$(ipcalc.sh "$b" | sed -n 's/^PREFIX=//p')"
+	[ -n "$pa" ] && [ -n "$pb" ] || return 1
+	[ "$pa" -le "$pb" ] && p="$pa" || p="$pb"
+	na="$(ipcalc.sh "${a%%/*}/$p" | sed -n 's/^NETWORK=//p')"
+	nb="$(ipcalc.sh "${b%%/*}/$p" | sed -n 's/^NETWORK=//p')"
+	[ -n "$na" ] && [ "$na" = "$nb" ]
+}
+
+overlap "$wan_sub" "$lan_sub" || exit 0
+
+for cand in 192.168.10.1 192.168.20.1 192.168.88.1 172.16.88.1 10.88.88.1; do
+	overlap "$wan_sub" "$cand/24" && continue
+	logger -t lan-wan-conflict "WAN $wan_sub overlaps LAN $lan_sub, moving LAN to $cand/24"
+	uci -q delete network.lan.ipaddr
+	uci -q delete network.lan.netmask
+	uci add_list network.lan.ipaddr="$cand/24"
+	uci commit network
+	# 延迟重载, 让当前 hotplug 先结束
+	( sleep 3; /etc/init.d/network reload ) >/dev/null 2>&1 &
+	exit 0
+done
+
+exit 0

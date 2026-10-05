@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/*
+ * Qihoo 360T7 for hanwckf's U-Boot (bl-mt798x, NMBM, 108M UBI layout),
+ * running official OpenWrt + mt76.
+ *
+ * The raw partition table of upstream "qihoo,360t7" is already identical to
+ * hanwckf's mt7981-360-t7-108M layout; what differs is:
+ *   - hanwckf U-Boot puts NMBM bad-block management under the whole NAND
+ *   - kernel (FIT) lives in UBI volume "kernel", rootfs in "rootfs"
+ *     (not a single "fit" volume), and root= comes from U-Boot bootargs
+ */
+
+/dts-v1/;
+#include "mt7981b-qihoo-360t7.dts"
+
+/ {
+	model = "Qihoo 360T7 (MTK U-Boot layout)";
+	compatible = "qihoo,360t7-mtkuboot", "mediatek,mt7981";
+
+	chosen {
+		/delete-property/ bootargs-append;
+		/delete-property/ rootdisk;
+	};
+};
+
+&spi0 {
+	spi_nand@0 {
+		mediatek,nmbm;
+		mediatek,bmt-max-ratio = <1>;
+		mediatek,bmt-max-reserved-blocks = <64>;
+	};
+};
+
+&partitions {
+	partition@580000 {
+		/* ubi */
+		/delete-node/ volumes;
+	};
+};

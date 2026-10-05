@@ -1,0 +1,16 @@
+#!/bin/sh
+# 360T7: HomeProxy 绕过大陆模式默认在线拉 SRS, 无 WAN 时会起不来; 生成本地规则后打补丁.
+INIT=/etc/init.d/homeproxy
+[ -x "$INIT" ] || exit 0
+grep -q 'patch_local_srs.uc' "$INIT" && exit 0
+awk '
+/generate_client\.uc/ && !done {
+  print
+  print "\tucode -S /etc/homeproxy/scripts/patch_local_srs.uc 2>>\"$LOG_PATH\""
+  done=1
+  next
+}
+{ print }
+' "$INIT" > "$INIT.new" && mv "$INIT.new" "$INIT"
+chmod +x "$INIT"
+exit 0

@@ -1,0 +1,13 @@
+#!/bin/sh
+# 360T7 常作二级路由, 上级多为 192.168.1.0/24, 默认 LAN 改为 192.168.10.1/24。
+# (运行期若 WAN 与 LAN 仍重叠, 由 hotplug 20-lan-wan-conflict 再次迁移。)
+cur="$(uci -q get network.lan.ipaddr)"
+case "$cur" in
+	192.168.1.1|192.168.1.1/24)
+		uci -q delete network.lan.ipaddr
+		uci -q delete network.lan.netmask
+		uci add_list network.lan.ipaddr='192.168.10.1/24'
+		uci commit network
+		;;
+esac
+exit 0
