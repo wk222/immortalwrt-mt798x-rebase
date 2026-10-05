@@ -1,16 +1,28 @@
 #!/bin/sh
-# 360T7: HomeProxy 绕过大陆模式默认在线拉 SRS, 无 WAN 时会起不来; 生成本地规则后打补丁.
+# 360T7: HomeProxy bypass_mainland_china mode uses online SRS rule sets by default
+# and cannot start without WAN. Patch the init script so that:
+#  1) generated config is rewritten to use bundled local .srs files
+#  2) ujail sandbox can read /etc/homeproxy/resources (otherwise sing-box
+#     fails with "open ...geoip-cn.srs: no such file or directory")
 INIT=/etc/init.d/homeproxy
 [ -x "$INIT" ] || exit 0
-grep -q 'patch_local_srs.uc' "$INIT" && exit 0
-awk '
-/generate_client\.uc/ && !done {
-  print
-  print "\tucode -S /etc/homeproxy/scripts/patch_local_srs.uc 2>>\"$LOG_PATH\""
-  done=1
-  next
-}
-{ print }
-' "$INIT" > "$INIT.new" && mv "$INIT.new" "$INIT"
+
+if ! grep -q 'patch_local_srs.uc' "$INIT"; then
+	awk '
+	/generate_client\.uc/ && !done {
+	  print
+	  print "\tucode -S /etc/homeproxy/scripts/patch_local_srs.uc 2>>\"$LOG_PATH\""
+	  done=1
+	  next
+	}
+	{ print }
+	' "$INIT" > "$INIT.new" && mv "$INIT.new" "$INIT"
+fi
+
+if ! grep -q 'HP_DIR/resources/"' "$INIT"; then
+	sed -i '/procd_add_jail_mount "\$HP_DIR\/certs\/"/i\
+procd_add_jail_mount "$HP_DIR/resources/"' "$INIT"
+fi
+
 chmod +x "$INIT"
 exit 0
