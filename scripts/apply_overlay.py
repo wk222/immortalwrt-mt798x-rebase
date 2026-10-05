@@ -47,3 +47,35 @@ files_dst = ow / "files"
 if files_src.exists():
     shutil.copytree(files_src, files_dst, dirs_exist_ok=True)
     print("files/ copied")
+
+# 5. HomeProxy: offline SRS + ujail resources + do not kill client when server config fails
+hp_init = ow / "package/feeds/immortalluci/luci-app-homeproxy/root/etc/init.d/homeproxy"
+if hp_init.is_file():
+    t = hp_init.read_text(encoding="utf-8")
+    gen = 'ucode -S "$HP_DIR/scripts/generate_client.uc" 2>>"$LOG_PATH"'
+    if "patch_local_srs.uc" not in t and gen in t:
+        t = t.replace(
+            gen,
+            gen + '\n\t\tucode -S "$HP_DIR/scripts/patch_local_srs.uc" 2>>"$LOG_PATH"',
+            1,
+        )
+    jail_certs = '\t\t\tprocd_add_jail_mount "$HP_DIR/certs/"'
+    jail_res = '\t\t\tprocd_add_jail_mount "$HP_DIR/resources/"'
+    if jail_res not in t and jail_certs in t:
+        t = t.replace(jail_certs, jail_res + "\n" + jail_certs, 1)
+    old_srv = (
+        '\t\tif [ ! -e "$RUN_DIR/sing-box-s.json" ]; then\n'
+        '\t\t\tlog "Error: failed to generate server configuration."\n'
+        "\t\t\treturn 1\n"
+    )
+    new_srv = (
+        '\t\tif [ ! -e "$RUN_DIR/sing-box-s.json" ]; then\n'
+        '\t\t\tlog "Warning: failed to generate server configuration, skip server."\n'
+        "\t\t\tserver_enabled=0\n"
+    )
+    if old_srv in t:
+        t = t.replace(old_srv, new_srv, 1)
+    hp_init.write_text(t, encoding="utf-8")
+    print("homeproxy init patched")
+else:
+    print("WARN: homeproxy init not found (feeds install order?)")

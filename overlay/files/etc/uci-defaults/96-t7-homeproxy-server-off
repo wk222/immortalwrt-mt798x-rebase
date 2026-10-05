@@ -1,0 +1,6 @@
+#!/bin/sh
+# LuCI 保存「入站」页时可能把 server.enabled 写成 1 但未配服务端，导致整 HomeProxy 起不来
+[ -f /etc/config/homeproxy ] || exit 0
+uci -q set homeproxy.server.enabled='0'
+uci commit homeproxy
+exit 0
